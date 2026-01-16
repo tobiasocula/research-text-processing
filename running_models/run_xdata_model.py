@@ -5,8 +5,12 @@ import numpy as np
 import tensorflow as tf
 import sys
 
-model_path = Path.cwd() / "constructed_models" / "xdata_models" / "model_0.keras"
-img_path = Path.cwd() / "data" / "test_images" / "sample_text.png"
+model_name = "model_3"
+model_path = Path.cwd() / "constructed_models" / "xdata_models" / f"{model_name}.keras"
+img_path = Path.cwd() / "data" / "test_images" / "sample_text_scaled.png"
+#save_to = Path.cwd() / "running_models" / "output_predicts_xmodels" / model_name
+save_to = Path.cwd() / "running_models" / "output_predicts_xmodels_scaled" / model_name
+Path.mkdir(save_to)
 
 model = tf.keras.models.load_model(model_path)
 
@@ -50,14 +54,12 @@ axes[1,1].set_title('Heights Heatmap')
 plt.colorbar(im3, ax=axes[1,1])
 
 plt.tight_layout()
-plt.show()
+#plt.show()
+plt.savefig(str(save_to / f"heatmap_{model_name}.png"))
 
 # Simple bar extraction and overlay
 bars = []
 for col in range(W):
-    print('max value in column:')
-    print(x_heatmap[:, col])
-    print()
     if np.max(x_heatmap[:, col]) > 0.5:  # Confidence threshold
         x = col
 
@@ -83,10 +85,13 @@ for x, y_top, height in bars:
     x, y_top = int(x), int(y_top)
     height = int(np.clip(height, 5, H - y_top))   # clamp within image
     bottom = y_top + height
+
+    # show
     cv2.rectangle(vis_image, (x-1, y_top), (x+1, bottom), (0, 0, 255), 2)
 
-plt.figure(figsize=(10, 5))
-plt.imshow(cv2.cvtColor(vis_image, cv2.COLOR_BGR2RGB))
-plt.title(f"Original + Predicted Bars (red) - {len(bars)} bars")
-plt.axis('off')
-plt.show()
+fig, ax = plt.subplots()
+ax.imshow(cv2.cvtColor(vis_image, cv2.COLOR_BGR2RGB))
+ax.set_title(f"Original + Predicted Bars (red) - {len(bars)} bars")
+ax.axis('off')
+plt.savefig(str(save_to / f"pred_bars_{model_name}.png"))
+#plt.show()

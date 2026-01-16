@@ -9,10 +9,8 @@ import argparse
 import itertools
 import sys
 
-def with_last_flag(it: Iterable) -> Iterator[Tuple[Tuple, bool]]:
+def with_last_flag(it):
     """Yield (item, is_last) pairs while iterating an iterable.
-
-    Helps dispatch parameter combos in fixed-size batches and flush the last batch.
     """
     it = iter(it)
     try:
@@ -25,12 +23,12 @@ def with_last_flag(it: Iterable) -> Iterator[Tuple[Tuple, bool]]:
     yield prev, True
 
 
-def conv_block(x: tf.Tensor, filters: int, dropout: float = 0.0) -> Tuple[tf.Tensor, tf.Tensor]:
+def conv_block(x, filters, dropout=0.0):
     """Conv block with skip connection output."""
     skip = x
-    x = tf.keras.layers.Conv2D(filters, 3, padding="same")(x)  # Fixed: removed double tf.keras
+    x = tf.keras.layers.Conv2D(filters, 3, padding="same")(x)
     x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.ReLU()(x)  # Better than Activation("relu")
+    x = tf.keras.layers.ReLU()(x)
     if dropout > 0:
         x = tf.keras.layers.SpatialDropout2D(dropout)(x)
     x = tf.keras.layers.Conv2D(filters, 3, padding="same")(x)
@@ -39,10 +37,10 @@ def conv_block(x: tf.Tensor, filters: int, dropout: float = 0.0) -> Tuple[tf.Ten
     return x, skip
 
 def build_spatial_regression_unet(
-    input_shape: Tuple[int, int, int] = (256, 256, 1),
-    base_filters: int = 32,
-    depth: int = 4,
-    dropout: float = 0.1,
+    input_shape=(256, 256, 1),
+    base_filters= 32,
+    depth=4,
+    dropout=0.1,
 ):
     """U-Net with spatial regression heads for x/y/height heatmaps."""
     inputs = tf.keras.layers.Input(shape=input_shape)
@@ -66,7 +64,6 @@ def build_spatial_regression_unet(
     for i in reversed(range(depth)):
         x = tf.keras.layers.UpSampling2D(2)(x)
         skip = skips[i]
-        skip_channels = skip.shape[-1]
         x = tf.keras.layers.Concatenate()([x, skip])
         x, _ = conv_block(x, filters // 2, dropout)
         filters //= 2
@@ -86,15 +83,14 @@ def build_spatial_regression_unet(
 
     model = tf.keras.Model(
     inputs,
-    [x_coords, y_tops, heights],  # List, not dict
+    [x_coords, y_tops, heights],
     name="spatial_regression_unet",
 )
 
     return model
 
-
-
-def _read_gray(path: tf.Tensor, image_size: Tuple[int, int]) -> tf.Tensor:
+def read_gray(path, image_size):
+    # Procedure to read grayscale img
     img = tf.io.read_file(path)
     img = tf.image.decode_png(img, channels=1)
     img = tf.image.resize(img, image_size)
@@ -104,8 +100,8 @@ def _read_gray(path: tf.Tensor, image_size: Tuple[int, int]) -> tf.Tensor:
 def make_paths():
     """
     root_dir/
-      imgs/    -> img_0.png, img_1.png, ...
-      xdata/   -> x_labels_0.npy, h_labels_0.npy, ...
+      imgs/-> img_0.png, img_1.png, ...
+      xdata/-> x_labels_0.npy, h_labels_0.npy, ...
     Returns:
       image_paths, index_strings (e.g. ['0','1',...]) so we can load npy by index.
     """
@@ -115,22 +111,22 @@ def make_paths():
     return image_paths, indices
 
 def build_coord_dataset(
-    image_size: Tuple[int, int],
-    batch_size: int,
-    shuffle: bool,
-    pct_train_data: float
-) -> tf.data.Dataset:
+    image_size,
+    batch_size,
+    shuffle,
+    pct_train_data
+):
     imgs, indices = make_paths()
 
     ds = tf.data.Dataset.from_tensor_slices((imgs, indices))
     if shuffle:
         ds = ds.shuffle(buffer_size=len(imgs), reshuffle_each_iteration=True)
 
-    def _load_sample(img_path: tf.Tensor, idx_str: tf.Tensor):
-        img = _read_gray(img_path, image_size)  # [H,W,1]
+    def load_sample(img_path, idx_str):
+        img = read_gray(img_path, image_size)  # [H,W,1]
         img_h, img_w = image_size
 
-        def _load_npy_labels_and_make_maps(idx_bytes: bytes):
+        def load_npy_labels_and_make_maps(idx_bytes):
             idx = idx_bytes.decode("utf-8")
             x_vec = np.load(os.path.join(xdata_dir, f"x_labels_{idx}.npy")).astype("float32")
             h_vec = np.load(os.path.join(xdata_dir, f"h_labels_{idx}.npy")).astype("float32")
@@ -152,7 +148,7 @@ def build_coord_dataset(
                     continue
                 y_bottom = min(img_h, yt + hh)
 
-                # very simple “solid bar” encoding; you can replace with Gaussians
+                # very simple “solid bar” encoding
                 x_map[yt:y_bottom, xc] = 1.0
                 y_map[yt, xc] = 1.0
                 h_map[yt:y_bottom, xc] = 1.0
@@ -164,7 +160,7 @@ def build_coord_dataset(
             return x_map, h_map, y_map
 
         x_map, h_map, y_map = tf.numpy_function(
-            _load_npy_labels_and_make_maps, [idx_str],
+            load_npy_labels_and_make_maps, [idx_str],
             Tout=(tf.float32, tf.float32, tf.float32),
         )
 
@@ -173,7 +169,7 @@ def build_coord_dataset(
         h_map.set_shape((*image_size, 1))
         y_map.set_shape((*image_size, 1))
 
-        # In _load_sample():
+        # In load_sample():
         targets = {
             "x_coords": x_map,
             "y_tops": y_map, 
@@ -181,17 +177,16 @@ def build_coord_dataset(
         }
         return img, targets
 
-    train_size = pct_train_data * len(ds)
+    train_size = int(pct_train_data * len(ds))
 
-    train_ds = ds.take(train_size).map(_load_sample, num_parallel_calls=tf.data.AUTOTUNE)
-    val_ds = ds.skip(train_size).map(_load_sample, num_parallel_calls=tf.data.AUTOTUNE)
+    train_ds = ds.take(train_size).map(load_sample, num_parallel_calls=tf.data.AUTOTUNE)
+    val_ds = ds.skip(train_size).map(load_sample, num_parallel_calls=tf.data.AUTOTUNE)
 
     train_ds = train_ds.batch(batch_size).prefetch(tf.data.AUTOTUNE)
     val_ds = val_ds.batch(batch_size).prefetch(tf.data.AUTOTUNE)
     
     return train_ds, val_ds
     
-
 def run(
     image_height: int,
     image_width: int,
@@ -220,7 +215,7 @@ def run(
     )
 
     model = build_spatial_regression_unet(
-        (image_height, image_width, 1),  # tuple, not just image_size
+        (image_height, image_width, 1),
         base_filters=base_filters, 
         depth=depth, 
         dropout=dropout
@@ -258,17 +253,14 @@ models_dir.mkdir(parents=True, exist_ok=True)
 
 def main():
     """Entry point: grid over hyperparameters, train models, and log results to JSON."""
-    
-
-    # Hyperparameter grid (edit these lists to explore the search space)
 
     # model architecture
     image_heights = [256]
     image_widths = [256]
-    pct_train_datas = [0.9]
+    pct_train_datas = [0.9, 0.8]
 
-    depths = [3] # U-Net depth (downsampling levels), maybe add 4
-    base_filters_list = [8] # Number of filters in first layer, maybe add 16
+    depths = [3, 4] # U-Net depth (downsampling levels), try 3 or 4?
+    base_filters_list = [8, 16] # Number of filters in first layer, maybe add 16
     dropouts = [0.1] # regularization
 
     # training
@@ -304,7 +296,7 @@ def main():
 
         results = [run(*sv) for sv in session_vars]  # Single process only
 
-        for hist, save_path in results:
+        for hist in results:
             # Persist run configuration and learning curves
             json_data[f"model_{model_counter}"] = {
                 "params": {
@@ -319,12 +311,11 @@ def main():
                     "batch_size": bs
                 },
                 "training_loss_per_epoch": [float(x) for x in hist.get("loss", [])],
-                "validation_loss_per_epoch": [float(x) for x in hist.get("val_loss", [])],
-                "saved_model_path": save_path,
+                "validation_loss_per_epoch": [float(x) for x in hist.get("val_loss", [])]
             }
+            model_counter += 1
 
         with open(json_path, "w") as f:
             json.dump(json_data, f)
 
-if __name__ == "__main__":
-    main()
+main()
