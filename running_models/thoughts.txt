@@ -1,1 +1,0 @@
-Model 10 performs pretty poorly.

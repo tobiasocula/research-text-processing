@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import sys
 
-model_name = "model_3"
+model_name = "model_6"
 model_path = Path.cwd() / "constructed_models" / "xdata_models" / f"{model_name}.keras"
 img_path = Path.cwd() / "data" / "test_images" / "sample_text_scaled.png"
 #save_to = Path.cwd() / "running_models" / "output_predicts_xmodels" / model_name

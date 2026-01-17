@@ -4,13 +4,12 @@ from keras.saving import register_keras_serializable
 @register_keras_serializable()
 def spatial_loss(y_true, y_pred):
 
-        
     def render_bars_from_predictions(
-            x_coords: tf.Tensor, y_tops: tf.Tensor, heights: tf.Tensor,
-            img_shape, bar_width: int = 2,
-            conf_threshold: float = 0.5
-        ) -> tf.Tensor:
-            """Convert spatial predictions to perfect vertical black bars."""
+            x_coords, y_tops, heights,
+            img_shape, bar_width = 2,
+            conf_threshold = 0.5
+        ):
+            """Convert spatial predictions to vertical black bars"""
             h, w = img_shape[:2]
             batch_size = tf.shape(x_coords)[0]
             
@@ -85,10 +84,6 @@ def make_soft_cldice_loss(k=10):
 
 @register_keras_serializable()
 def soft_skeletonize(x, thresh_width=10):
-    """
-    Differenciable aproximation of morphological skelitonization operaton
-    thresh_width - needs to be greater then or equal to the maximum radius for the tube-like structure
-    """
 
     minpool = (
         lambda y: tf.keras.backend.pool2d(
@@ -110,7 +105,7 @@ def soft_skeletonize(x, thresh_width=10):
         padding="same",
     )
 
-    for i in range(thresh_width):
+    for _ in range(thresh_width):
         min_pool_x = minpool(x)
         contour = tf.keras.backend.relu(maxpool(min_pool_x) - min_pool_x)
         x = tf.keras.backend.relu(x - contour)
@@ -175,7 +170,7 @@ def focal_loss(y_true, y_pred, gamma=2.0, alpha=0.25):
     return tf.reduce_mean(focal)
 
 @register_keras_serializable()
-def dice_coef(y_true: tf.Tensor, y_pred: tf.Tensor, smooth: float = 1.0) -> tf.Tensor:
+def dice_coef(y_true, y_pred, smooth = 1.0):
     """Dice coefficient (overlap) between predicted and target masks."""
     y_true_f = tf.reshape(y_true, [tf.shape(y_true)[0], -1])
     y_pred_f = tf.reshape(y_pred, [tf.shape(y_pred)[0], -1])
@@ -193,18 +188,18 @@ def weighted_bce(y_true, y_pred, pos_weight=10.0, neg_weight=1.0):
     return loss
 
 @register_keras_serializable()
-def dice_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
+def dice_loss(y_true, y_pred):
     """Dice loss encourages overlap between predicted and true masks."""
     return 1.0 - dice_coef(y_true, y_pred)
 
 @register_keras_serializable()
-def bce_dice_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
+def bce_dice_loss(y_true, y_pred):
     """Combined Binary Cross-Entropy + Dice loss for stable training."""
     bce = tf.keras.losses.binary_crossentropy(y_true, y_pred)
     return tf.reduce_mean(bce) + dice_loss(y_true, y_pred)
 
 @register_keras_serializable()
-def iou_score(y_true: tf.Tensor, y_pred: tf.Tensor, smooth: float = 1.0) -> tf.Tensor:
+def iou_score(y_true, y_pred, smooth = 1.0):
     """Intersection-over-Union metric (Jaccard index)."""
     y_true_f = tf.reshape(y_true, [tf.shape(y_true)[0], -1])
     y_pred_f = tf.reshape(y_pred, [tf.shape(y_pred)[0], -1])

@@ -1,0 +1,45 @@
+
+
+--(Binary) cross entropy
+
+Cross entropy, being the standard metric for comparing probability distributions.
+BCE = cross entropy simplified for two classes (with true and predicted label).
+
+Can be used for image segmentation, eg. classifying foreground vs. background structures.
+
+--Dice loss
+
+https://en.wikipedia.org/wiki/Dice-S%C3%B8rensen_coefficient
+
+Models overlap by intersection divided by union.
+Comparison with BCE: this models overlap, while BCE measures pixel classification.
+
+I figured this doesn't work very well on the task of identifying vertical and thin bar-like structures.
+Does not promote estimation of vertical stripes, but instead of blurry patches.
+
+--Combined Dice + BCE
+
+Simply combines both, intending to compensate each other's weaknesses.
+
+--Soft skeletonize
+
+See: https://github.com/MIC-DKFZ/Skeleton-Recall
+Supposed to perform better on "thin" structures.
+Unfortunately didn't work as expected / hoped for.
+
+--Focal loss
+
+Read: https://medium.com/visionwizard/understanding-focal-loss-a-quick-read-b914422913e7
+Variant of cross-entropy loss. Focuses more on low-confidence examples by adding extra term in formula.
+
+--Jaccard index (IoU)
+https://en.wikipedia.org/wiki/Jaccard_index
+Very similar (if not same?) as dice loss
+
+--Huber loss
+
+https://en.wikipedia.org/wiki/Huber_loss
+
+Used for "robust regression", less sensitive in outliers in data than squared error.
+
+--Weighted BCE
